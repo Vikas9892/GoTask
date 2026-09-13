@@ -14,6 +14,59 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d gotask"]
+      interval: 3s
+      timeout: 3s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      target: api
+    container_name: gotask-api
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      PORT: "8080"
+      DATABASE_URL: "postgres://postgres:postgres@postgres:5432/gotask?sslmode=disable"
+      QUEUE_SIZE: "100"
+      SHUTDOWN_TIMEOUT: "15s"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: .
+      target: worker
+    container_name: gotask-worker
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      WORKER_PORT: "8081"
+      DATABASE_URL: "postgres://postgres:postgres@postgres:5432/gotask?sslmode=disable"
+      QUEUE_SIZE: "100"
+      WORKER_COUNT: "5"
+      MAX_RETRIES: "3"
+      JOB_TIMEOUT: "30s"
+      SHUTDOWN_TIMEOUT: "15s"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: .
+      target: frontend
+    container_name: gotask-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      - api
 
 volumes:
   pgdata:
