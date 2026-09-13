@@ -3,6 +3,7 @@ package queue
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -98,5 +99,29 @@ func TestQueue_Shutdown(t *testing.T) {
 	_, ok = <-q.Jobs()
 	if ok {
 		t.Error("expected channel to be closed after drain")
+	}
+}
+
+func TestQueue_ConcurrentEnqueueAndClose(t *testing.T) {
+	for iter := 0; iter < 50; iter++ {
+		q := NewQueue(10)
+		var wg sync.WaitGroup
+		ctx := context.Background()
+
+		for i := 0; i < 5; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				_ = q.Enqueue(ctx, &model.Job{ID: uuid.New()})
+			}()
+		}
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			q.Close()
+		}()
+
+		wg.Wait()
 	}
 }

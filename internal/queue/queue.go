@@ -35,16 +35,10 @@ func NewQueue(capacity int) *Queue {
 // and immediately returns ErrQueueFull if buffer is full rather than blocking indefinitely.
 func (q *Queue) Enqueue(ctx context.Context, job *model.Job) error {
 	q.mu.RLock()
-	if q.closed {
-		q.mu.RUnlock()
-		return ErrQueueClosed
-	}
-	q.mu.RUnlock()
+	defer q.mu.RUnlock()
 
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	default:
+	if q.closed {
+		return ErrQueueClosed
 	}
 
 	select {
