@@ -13,6 +13,7 @@ import (
 	"github.com/Vikas9892/GoTask/internal/config"
 	"github.com/Vikas9892/GoTask/internal/database"
 	"github.com/Vikas9892/GoTask/internal/health"
+	"github.com/Vikas9892/GoTask/internal/metrics"
 	"github.com/Vikas9892/GoTask/internal/queue"
 	"github.com/Vikas9892/GoTask/services/worker/internal/executor"
 	"github.com/Vikas9892/GoTask/services/worker/internal/recovery"
@@ -90,6 +91,7 @@ func main() {
 							break
 						}
 					}
+					metrics.QueueSize.Set(float64(jobQueue.Size()))
 				}
 			}
 		}()
@@ -99,6 +101,7 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", health.LivenessHandler("worker"))
 	mux.HandleFunc("GET /ready", health.ReadinessHandler("worker", pool))
+	mux.Handle("GET /metrics", metrics.Handler())
 
 	server := &http.Server{
 		Addr:         ":" + cfg.Port,

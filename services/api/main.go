@@ -13,6 +13,7 @@ import (
 	"github.com/Vikas9892/GoTask/internal/config"
 	"github.com/Vikas9892/GoTask/internal/database"
 	"github.com/Vikas9892/GoTask/internal/health"
+	"github.com/Vikas9892/GoTask/internal/metrics"
 	"github.com/Vikas9892/GoTask/services/api/internal/handler"
 	"github.com/Vikas9892/GoTask/services/api/internal/middleware"
 	"github.com/Vikas9892/GoTask/services/api/internal/repository"
@@ -41,6 +42,7 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", health.LivenessHandler("api"))
 	mux.HandleFunc("GET /ready", health.ReadinessHandler("api", pool))
+	mux.Handle("GET /metrics", metrics.Handler())
 
 	if pool != nil {
 		repo := repository.NewPostgresJobRepository(pool)

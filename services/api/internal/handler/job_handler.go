@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/Vikas9892/GoTask/internal/metrics"
 	"github.com/Vikas9892/GoTask/services/api/internal/repository"
 	"github.com/Vikas9892/GoTask/services/api/internal/service"
 	"github.com/google/uuid"
@@ -57,6 +58,7 @@ func (h *JobHandler) CreateJob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	metrics.JobsSubmittedTotal.Inc()
 	writeJSON(w, http.StatusCreated, job)
 }
 

@@ -5,13 +5,14 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/Vikas9892/GoTask/internal/metrics"
 	"github.com/Vikas9892/GoTask/internal/model"
 	"github.com/Vikas9892/GoTask/internal/queue"
 	"github.com/Vikas9892/GoTask/services/worker/internal/executor"
 	"github.com/Vikas9892/GoTask/services/worker/internal/repository"
 )
 
-// NewDatabaseJobProcessor returns a JobProcessor that executes jobs with a timeout, tracks attempt history, and synchronizes state with PostgreSQL.
+// NewDatabaseJobProcessor returns a JobProcessor that executes jobs with a timeout, tracks metrics, and synchronizes state with PostgreSQL.
 func NewDatabaseJobProcessor(repo repository.WorkerRepository, execRegistry *executor.Registry, q *queue.Queue, jobTimeout time.Duration) JobProcessor {
 	if jobTimeout <= 0 {
 		jobTimeout = 30 * time.Second
@@ -44,10 +45,17 @@ func NewDatabaseJobProcessor(repo repository.WorkerRepository, execRegistry *exe
 		}
 		attemptID, _ := repo.CreateAttempt(ctx, attemptRecord)
 
+		// Metrics tracking
+		metrics.ActiveWorkers.Inc()
+		defer metrics.ActiveWorkers.Dec()
+		start := time.Now()
+
 		// 4. Execute the job with timeout
 		execCtx, cancel := context.WithTimeout(ctx, jobTimeout)
 		execErr := execRegistry.Execute(execCtx, job)
 		cancel()
+
+		metrics.JobProcessingDuration.Observe(time.Since(start).Seconds())
 
 		if execErr != nil {
 			errStr := execErr.Error()
@@ -57,6 +65,7 @@ func NewDatabaseJobProcessor(repo repository.WorkerRepository, execRegistry *exe
 
 			// Check if attempts remain for retry
 			if job.Attempts < job.MaxAttempts {
+				metrics.JobsRetriedTotal.Inc()
 				if err := repo.MarkRetry(ctx, job.ID, errStr); err != nil {
 					return fmt.Errorf("failed to mark job for retry: %w", err)
 				}
@@ -67,6 +76,7 @@ func NewDatabaseJobProcessor(repo repository.WorkerRepository, execRegistry *exe
 			}
 
 			// Permanently failed after maximum attempts
+			metrics.JobsFailedTotal.Inc()
 			if err := repo.MarkFailed(ctx, job.ID, errStr); err != nil {
 				return fmt.Errorf("failed to mark job failed: %w", err)
 			}
@@ -74,6 +84,7 @@ func NewDatabaseJobProcessor(repo repository.WorkerRepository, execRegistry *exe
 		}
 
 		// 5. Mark completed on success
+		metrics.JobsCompletedTotal.Inc()
 		if attemptID > 0 {
 			_ = repo.UpdateAttempt(ctx, attemptID, model.StatusCompleted, nil)
 		}
