@@ -100,6 +100,17 @@ func (m *MockWorkerRepository) MarkRetry(ctx context.Context, id uuid.UUID, errM
 	return nil
 }
 
+func (m *MockWorkerRepository) CreateAttempt(ctx context.Context, attempt *model.JobAttempt) (int64, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	attempt.ID = int64(len(m.jobs)*1000 + attempt.Attempt)
+	return attempt.ID, nil
+}
+
+func (m *MockWorkerRepository) UpdateAttempt(ctx context.Context, attemptID int64, status model.JobStatus, errMsg *string) error {
+	return nil
+}
+
 func (m *MockWorkerRepository) FindPendingJobs(ctx context.Context, limit int) ([]*model.Job, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()

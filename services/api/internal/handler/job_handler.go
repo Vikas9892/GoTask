@@ -35,6 +35,7 @@ func (h *JobHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/jobs", h.ListJobs)
 	mux.HandleFunc("GET /api/jobs/{id}", h.GetJob)
 	mux.HandleFunc("DELETE /api/jobs/{id}", h.DeleteJob)
+	mux.HandleFunc("GET /api/jobs/{id}/attempts", h.GetJobAttempts)
 }
 
 func (h *JobHandler) CreateJob(w http.ResponseWriter, r *http.Request) {
@@ -134,6 +135,27 @@ func (h *JobHandler) DeleteJob(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *JobHandler) GetJobAttempts(w http.ResponseWriter, r *http.Request) {
+	idStr := r.PathValue("id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid job UUID format")
+		return
+	}
+
+	attempts, err := h.service.GetJobAttempts(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, repository.ErrJobNotFound) {
+			writeError(w, http.StatusNotFound, "job not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "failed to retrieve job attempts")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, attempts)
 }
 
 func writeJSON(w http.ResponseWriter, status int, data any) {

@@ -23,6 +23,8 @@ type WorkerRepository interface {
 	MarkCompleted(ctx context.Context, id uuid.UUID) error
 	MarkFailed(ctx context.Context, id uuid.UUID, errMsg string) error
 	MarkRetry(ctx context.Context, id uuid.UUID, errMsg string) error
+	CreateAttempt(ctx context.Context, attempt *model.JobAttempt) (int64, error)
+	UpdateAttempt(ctx context.Context, attemptID int64, status model.JobStatus, errMsg *string) error
 	FindPendingJobs(ctx context.Context, limit int) ([]*model.Job, error)
 	ResetStaleProcessingJobs(ctx context.Context, threshold time.Duration) (int64, error)
 }
@@ -136,6 +138,35 @@ func (r *PostgresWorkerRepository) MarkRetry(ctx context.Context, id uuid.UUID, 
 	}
 	if tag.RowsAffected() == 0 {
 		return ErrJobNotFound
+	}
+	return nil
+}
+
+func (r *PostgresWorkerRepository) CreateAttempt(ctx context.Context, attempt *model.JobAttempt) (int64, error) {
+	query := `
+		INSERT INTO job_attempts (job_id, attempt, status, started_at)
+		VALUES ($1, $2, $3, $4)
+		RETURNING id
+	`
+	var id int64
+	err := r.pool.QueryRow(ctx, query, attempt.JobID, attempt.Attempt, attempt.Status, attempt.StartedAt).Scan(&id)
+	if err != nil {
+		return 0, fmt.Errorf("failed to insert job attempt: %w", err)
+	}
+	return id, nil
+}
+
+func (r *PostgresWorkerRepository) UpdateAttempt(ctx context.Context, attemptID int64, status model.JobStatus, errMsg *string) error {
+	query := `
+		UPDATE job_attempts
+		SET status = $2,
+		    error = $3,
+		    completed_at = NOW()
+		WHERE id = $1
+	`
+	_, err := r.pool.Exec(ctx, query, attemptID, status, errMsg)
+	if err != nil {
+		return fmt.Errorf("failed to update job attempt: %w", err)
 	}
 	return nil
 }

@@ -18,6 +18,7 @@ type JobRepository interface {
 	GetJob(ctx context.Context, id uuid.UUID) (*model.Job, error)
 	ListJobs(ctx context.Context, limit, offset int) ([]*model.Job, int, error)
 	DeleteJob(ctx context.Context, id uuid.UUID) error
+	GetJobAttempts(ctx context.Context, jobID uuid.UUID) ([]*model.JobAttempt, error)
 }
 
 type PostgresJobRepository struct {
@@ -139,4 +140,37 @@ func (r *PostgresJobRepository) DeleteJob(ctx context.Context, id uuid.UUID) err
 		return ErrJobNotFound
 	}
 	return nil
+}
+
+func (r *PostgresJobRepository) GetJobAttempts(ctx context.Context, jobID uuid.UUID) ([]*model.JobAttempt, error) {
+	query := `
+		SELECT id, job_id, attempt, status, error, started_at, completed_at
+		FROM job_attempts
+		WHERE job_id = $1
+		ORDER BY attempt ASC
+	`
+	rows, err := r.pool.Query(ctx, query, jobID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query job attempts: %w", err)
+	}
+	defer rows.Close()
+
+	attempts := make([]*model.JobAttempt, 0)
+	for rows.Next() {
+		var a model.JobAttempt
+		err := rows.Scan(
+			&a.ID,
+			&a.JobID,
+			&a.Attempt,
+			&a.Status,
+			&a.Error,
+			&a.StartedAt,
+			&a.CompletedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan attempt row: %w", err)
+		}
+		attempts = append(attempts, &a)
+	}
+	return attempts, nil
 }

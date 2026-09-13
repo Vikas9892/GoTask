@@ -93,3 +93,10 @@ func (s *JobService) ListJobs(ctx context.Context, limit, offset int) ([]*model.
 func (s *JobService) DeleteJob(ctx context.Context, id uuid.UUID) error {
 	return s.repo.DeleteJob(ctx, id)
 }
+
+func (s *JobService) GetJobAttempts(ctx context.Context, id uuid.UUID) ([]*model.JobAttempt, error) {
+	if _, err := s.repo.GetJob(ctx, id); err != nil {
+		return nil, err
+	}
+	return s.repo.GetJobAttempts(ctx, id)
+}

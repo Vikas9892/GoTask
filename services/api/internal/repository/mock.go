@@ -65,3 +65,7 @@ func (m *MockJobRepository) DeleteJob(ctx context.Context, id uuid.UUID) error {
 	delete(m.jobs, id)
 	return nil
 }
+
+func (m *MockJobRepository) GetJobAttempts(ctx context.Context, jobID uuid.UUID) ([]*model.JobAttempt, error) {
+	return []*model.JobAttempt{}, nil
+}

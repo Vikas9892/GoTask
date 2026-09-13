@@ -142,3 +142,23 @@ func TestJobHandler_DeleteJob(t *testing.T) {
 		t.Errorf("expected status 404 for deleted job, got %d", notFoundRec.Code)
 	}
 }
+
+func TestJobHandler_GetJobAttempts(t *testing.T) {
+	mux, svc := setupTestServer()
+
+	job, err := svc.CreateJob(t.Context(), service.CreateJobInput{
+		Type:    "report",
+		Payload: json.RawMessage(`{"report_id":999}`),
+	})
+	if err != nil {
+		t.Fatalf("failed to create job: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/jobs/"+job.ID.String()+"/attempts", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", rec.Code)
+	}
+}
