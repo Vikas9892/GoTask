@@ -49,6 +49,17 @@ func main() {
 		jobService := service.NewJobService(repo)
 		jobHandler := handler.NewJobHandler(jobService)
 		jobHandler.RegisterRoutes(mux)
+	} else {
+		unavailableHandler := func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusServiceUnavailable)
+			w.Write([]byte(`{"error":"database connection unavailable: PostgreSQL pool failed to connect"}`))
+		}
+		mux.HandleFunc("POST /api/jobs", unavailableHandler)
+		mux.HandleFunc("GET /api/jobs", unavailableHandler)
+		mux.HandleFunc("GET /api/jobs/{id}", unavailableHandler)
+		mux.HandleFunc("DELETE /api/jobs/{id}", unavailableHandler)
+		mux.HandleFunc("GET /api/jobs/{id}/attempts", unavailableHandler)
 	}
 
 	appHandler := middleware.Chain(mux,

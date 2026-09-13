@@ -20,28 +20,29 @@ flowchart TD
         APIRepo["Postgres Job Repo"]
     end
 
-    subgraph DB ["PostgreSQL (Durable Storage)"]
-        JobsTable[("jobs Table\n(status: pending, processing, completed, failed)")]
-        AttemptsTable[("job_attempts Table\n(execution logs & errors)")]
+    subgraph DB ["PostgreSQL Durable Storage"]
+        JobsTable[("jobs table")]
+        AttemptsTable[("job_attempts table")]
     end
 
     subgraph Worker ["Worker Service (Go Runtime)"]
         Dispatcher["Startup Recovery & Poller"]
-        Queue["Bounded Go Channel\nchan *model.Job (Buffer: 100)"]
-        Pool["Worker Pool\n(N Goroutines)"]
-        Executors["Job Executors\n(email, webhook, report)"]
+        Queue["Bounded Go Channel (Buffer: 100)"]
+        Pool["Worker Pool (N Goroutines)"]
+        Executors["Job Executors (email, webhook, report)"]
     end
 
-    UI -->|REST API (JSON)| Router
+    UI -->|"REST API (JSON)"| Router
     Router --> APISvc
     APISvc --> APIRepo
-    APIRepo -->|INSERT / SELECT| JobsTable
+    APIRepo -->|"INSERT / SELECT"| JobsTable
 
-    JobsTable -.->|Startup Recovery / Poll Pending| Dispatcher
-    Dispatcher -->|Enqueue| Queue
-    Queue -->|Consume Work| Pool
+    JobsTable -.->|"Startup Recovery / Poll"| Dispatcher
+    Dispatcher -->|"Enqueue"| Queue
+    Queue -->|"Consume Work"| Pool
     Pool --> Executors
-    Pool -->|UPDATE Status / Record Attempts| DB
+    Pool -->|"UPDATE Status"| JobsTable
+    Pool -->|"Record Attempts"| AttemptsTable
 ```
 
 ---

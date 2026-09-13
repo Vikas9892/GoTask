@@ -3,6 +3,8 @@ package handler
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
+	"log/slog"
 	"net/http"
 	"strconv"
 
@@ -54,7 +56,8 @@ func (h *JobHandler) CreateJob(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
 		}
-		writeError(w, http.StatusInternalServerError, "failed to create job")
+		slog.Error("failed to create job in repository", "type", input.Type, "error", err)
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("database error creating job: %v", err))
 		return
 	}
 
@@ -76,7 +79,8 @@ func (h *JobHandler) GetJob(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusNotFound, "job not found")
 			return
 		}
-		writeError(w, http.StatusInternalServerError, "failed to retrieve job")
+		slog.Error("failed to retrieve job from repository", "id", id, "error", err)
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("database error retrieving job: %v", err))
 		return
 	}
 
@@ -111,7 +115,8 @@ func (h *JobHandler) ListJobs(w http.ResponseWriter, r *http.Request) {
 
 	jobs, total, err := h.service.ListJobs(r.Context(), limit, offset)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to list jobs")
+		slog.Error("failed to list jobs from repository", "limit", limit, "offset", offset, "error", err)
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("database error listing jobs: %v", err))
 		return
 	}
 
@@ -136,7 +141,8 @@ func (h *JobHandler) DeleteJob(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusNotFound, "job not found")
 			return
 		}
-		writeError(w, http.StatusInternalServerError, "failed to delete job")
+		slog.Error("failed to delete job from repository", "id", id, "error", err)
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("database error deleting job: %v", err))
 		return
 	}
 
@@ -157,7 +163,8 @@ func (h *JobHandler) GetJobAttempts(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusNotFound, "job not found")
 			return
 		}
-		writeError(w, http.StatusInternalServerError, "failed to retrieve job attempts")
+		slog.Error("failed to retrieve job attempts from repository", "id", id, "error", err)
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("database error retrieving job attempts: %v", err))
 		return
 	}
 
