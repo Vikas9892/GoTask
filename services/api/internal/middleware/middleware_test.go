@@ -54,3 +54,21 @@ func TestRecoverer_HandlesPanic(t *testing.T) {
 		t.Errorf("unexpected body: %s", rec.Body.String())
 	}
 }
+
+func TestCORS(t *testing.T) {
+	handler := CORS(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	// OPTIONS preflight
+	req := httptest.NewRequest(http.MethodOptions, "/api/jobs", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Errorf("expected status 204 for OPTIONS, got %d", rec.Code)
+	}
+	if rec.Header().Get("Access-Control-Allow-Origin") != "*" {
+		t.Errorf("expected CORS allow origin *, got %s", rec.Header().Get("Access-Control-Allow-Origin"))
+	}
+}

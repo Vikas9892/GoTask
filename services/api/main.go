@@ -52,6 +52,7 @@ func main() {
 	}
 
 	appHandler := middleware.Chain(mux,
+		middleware.CORS,
 		middleware.Recoverer,
 		middleware.Logger,
 		middleware.RequestID,
