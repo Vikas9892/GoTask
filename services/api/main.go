@@ -14,6 +14,7 @@ import (
 	"github.com/Vikas9892/GoTask/internal/config"
 	"github.com/Vikas9892/GoTask/internal/database"
 	"github.com/Vikas9892/GoTask/services/api/internal/handler"
+	"github.com/Vikas9892/GoTask/services/api/internal/middleware"
 	"github.com/Vikas9892/GoTask/services/api/internal/repository"
 	"github.com/Vikas9892/GoTask/services/api/internal/service"
 )
@@ -56,9 +57,15 @@ func main() {
 		jobHandler.RegisterRoutes(mux)
 	}
 
+	appHandler := middleware.Chain(mux,
+		middleware.Recoverer,
+		middleware.Logger,
+		middleware.RequestID,
+	)
+
 	server := &http.Server{
 		Addr:         ":" + cfg.Port,
-		Handler:      mux,
+		Handler:      appHandler,
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
 		IdleTimeout:  60 * time.Second,
