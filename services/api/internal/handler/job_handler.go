@@ -86,21 +86,25 @@ func (h *JobHandler) ListJobs(w http.ResponseWriter, r *http.Request) {
 	offset := 0
 
 	if l := r.URL.Query().Get("limit"); l != "" {
-		if val, err := strconv.Atoi(l); err == nil && val > 0 {
-			limit = val
-		} else if err != nil {
-			writeError(w, http.StatusBadRequest, "limit must be a positive integer")
+		val, err := strconv.Atoi(l)
+		if err != nil || val <= 0 {
+			writeError(w, http.StatusBadRequest, "limit must be a positive integer between 1 and 100")
 			return
+		}
+		if val > 100 {
+			limit = 100
+		} else {
+			limit = val
 		}
 	}
 
 	if o := r.URL.Query().Get("offset"); o != "" {
-		if val, err := strconv.Atoi(o); err == nil && val >= 0 {
-			offset = val
-		} else if err != nil {
+		val, err := strconv.Atoi(o)
+		if err != nil || val < 0 {
 			writeError(w, http.StatusBadRequest, "offset must be a non-negative integer")
 			return
 		}
+		offset = val
 	}
 
 	jobs, total, err := h.service.ListJobs(r.Context(), limit, offset)

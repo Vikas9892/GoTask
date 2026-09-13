@@ -162,3 +162,37 @@ func TestJobHandler_GetJobAttempts(t *testing.T) {
 		t.Fatalf("expected status 200, got %d", rec.Code)
 	}
 }
+
+func TestJobHandler_PaginationValidation(t *testing.T) {
+	mux, _ := setupTestServer()
+
+	// Invalid negative limit
+	req := httptest.NewRequest(http.MethodGet, "/api/jobs?limit=-5", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for negative limit, got %d", rec.Code)
+	}
+
+	// Invalid offset
+	req2 := httptest.NewRequest(http.MethodGet, "/api/jobs?offset=-1", nil)
+	rec2 := httptest.NewRecorder()
+	mux.ServeHTTP(rec2, req2)
+	if rec2.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for negative offset, got %d", rec2.Code)
+	}
+
+	// Limit capping at 100
+	req3 := httptest.NewRequest(http.MethodGet, "/api/jobs?limit=500", nil)
+	rec3 := httptest.NewRecorder()
+	mux.ServeHTTP(rec3, req3)
+	if rec3.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec3.Code)
+	}
+
+	var resp ListJobsResponse
+	_ = json.NewDecoder(rec3.Body).Decode(&resp)
+	if resp.Limit != 100 {
+		t.Errorf("expected limit capped at 100, got %d", resp.Limit)
+	}
+}
