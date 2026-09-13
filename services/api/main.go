@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -13,20 +12,12 @@ import (
 
 	"github.com/Vikas9892/GoTask/internal/config"
 	"github.com/Vikas9892/GoTask/internal/database"
+	"github.com/Vikas9892/GoTask/internal/health"
 	"github.com/Vikas9892/GoTask/services/api/internal/handler"
 	"github.com/Vikas9892/GoTask/services/api/internal/middleware"
 	"github.com/Vikas9892/GoTask/services/api/internal/repository"
 	"github.com/Vikas9892/GoTask/services/api/internal/service"
 )
-
-func healthHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(map[string]string{
-		"status":  "ok",
-		"service": "api",
-	})
-}
 
 func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
@@ -48,7 +39,8 @@ func main() {
 	}
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /health", healthHandler)
+	mux.HandleFunc("GET /health", health.LivenessHandler("api"))
+	mux.HandleFunc("GET /ready", health.ReadinessHandler("api", pool))
 
 	if pool != nil {
 		repo := repository.NewPostgresJobRepository(pool)

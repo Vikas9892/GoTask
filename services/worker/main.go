@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -13,21 +12,13 @@ import (
 
 	"github.com/Vikas9892/GoTask/internal/config"
 	"github.com/Vikas9892/GoTask/internal/database"
+	"github.com/Vikas9892/GoTask/internal/health"
 	"github.com/Vikas9892/GoTask/internal/queue"
 	"github.com/Vikas9892/GoTask/services/worker/internal/executor"
 	"github.com/Vikas9892/GoTask/services/worker/internal/recovery"
 	"github.com/Vikas9892/GoTask/services/worker/internal/repository"
 	"github.com/Vikas9892/GoTask/services/worker/internal/worker"
 )
-
-func healthHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(map[string]string{
-		"status":  "ok",
-		"service": "worker",
-	})
-}
 
 func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
@@ -104,9 +95,10 @@ func main() {
 		}()
 	}
 
-	// Health check HTTP server
+	// Health & readiness HTTP server
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /health", healthHandler)
+	mux.HandleFunc("GET /health", health.LivenessHandler("worker"))
+	mux.HandleFunc("GET /ready", health.ReadinessHandler("worker", pool))
 
 	server := &http.Server{
 		Addr:         ":" + cfg.Port,
