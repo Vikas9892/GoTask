@@ -22,6 +22,7 @@ type WorkerRepository interface {
 	MarkProcessing(ctx context.Context, id uuid.UUID) error
 	MarkCompleted(ctx context.Context, id uuid.UUID) error
 	MarkFailed(ctx context.Context, id uuid.UUID, errMsg string) error
+	MarkRetry(ctx context.Context, id uuid.UUID, errMsg string) error
 	FindPendingJobs(ctx context.Context, limit int) ([]*model.Job, error)
 	ResetStaleProcessingJobs(ctx context.Context, threshold time.Duration) (int64, error)
 }
@@ -114,6 +115,24 @@ func (r *PostgresWorkerRepository) MarkFailed(ctx context.Context, id uuid.UUID,
 	tag, err := r.pool.Exec(ctx, query, id, errMsg)
 	if err != nil {
 		return fmt.Errorf("failed to mark job failed: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrJobNotFound
+	}
+	return nil
+}
+
+func (r *PostgresWorkerRepository) MarkRetry(ctx context.Context, id uuid.UUID, errMsg string) error {
+	query := `
+		UPDATE jobs
+		SET status = 'pending',
+		    last_error = $2,
+		    updated_at = NOW()
+		WHERE id = $1
+	`
+	tag, err := r.pool.Exec(ctx, query, id, errMsg)
+	if err != nil {
+		return fmt.Errorf("failed to mark job for retry: %w", err)
 	}
 	if tag.RowsAffected() == 0 {
 		return ErrJobNotFound

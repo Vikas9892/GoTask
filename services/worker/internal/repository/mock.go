@@ -87,6 +87,19 @@ func (m *MockWorkerRepository) MarkFailed(ctx context.Context, id uuid.UUID, err
 	return nil
 }
 
+func (m *MockWorkerRepository) MarkRetry(ctx context.Context, id uuid.UUID, errMsg string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	job, ok := m.jobs[id]
+	if !ok {
+		return ErrJobNotFound
+	}
+	job.Status = model.StatusPending
+	job.LastError = &errMsg
+	job.UpdatedAt = time.Now().UTC()
+	return nil
+}
+
 func (m *MockWorkerRepository) FindPendingJobs(ctx context.Context, limit int) ([]*model.Job, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
