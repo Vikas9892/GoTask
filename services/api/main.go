@@ -3,9 +3,13 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/Vikas9892/GoTask/internal/config"
 	"github.com/Vikas9892/GoTask/internal/database"
@@ -52,9 +56,40 @@ func main() {
 		jobHandler.RegisterRoutes(mux)
 	}
 
-	slog.Info("starting API service", "port", cfg.Port)
-	if err := http.ListenAndServe(":"+cfg.Port, mux); err != nil {
-		slog.Error("API service stopped", "error", err)
-		os.Exit(1)
+	server := &http.Server{
+		Addr:         ":" + cfg.Port,
+		Handler:      mux,
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 15 * time.Second,
+		IdleTimeout:  60 * time.Second,
 	}
+
+	// Run HTTP server in background goroutine
+	go func() {
+		slog.Info("starting API service", "port", cfg.Port)
+		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			slog.Error("API HTTP server error", "error", err)
+			os.Exit(1)
+		}
+	}()
+
+	// Listen for termination signals
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
+	<-stop
+
+	slog.Info("shutting down API service gracefully...")
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
+	defer cancel()
+
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		slog.Error("error during API server shutdown", "error", err)
+	}
+
+	if pool != nil {
+		pool.Close()
+	}
+
+	slog.Info("API service shutdown complete")
 }
