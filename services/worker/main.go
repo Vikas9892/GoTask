@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+
+	"github.com/Vikas9892/GoTask/internal/config"
 )
 
 func healthHandler(w http.ResponseWriter, r *http.Request) {
@@ -20,16 +22,17 @@ func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	slog.SetDefault(logger)
 
+	cfg, err := config.LoadWorkerConfig()
+	if err != nil {
+		slog.Error("failed to load Worker configuration", "error", err)
+		os.Exit(1)
+	}
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", healthHandler)
 
-	port := os.Getenv("WORKER_PORT")
-	if port == "" {
-		port = "8081"
-	}
-
-	slog.Info("starting Worker service", "port", port)
-	if err := http.ListenAndServe(":"+port, mux); err != nil {
+	slog.Info("starting Worker service", "port", cfg.Port)
+	if err := http.ListenAndServe(":"+cfg.Port, mux); err != nil {
 		slog.Error("Worker service stopped", "error", err)
 		os.Exit(1)
 	}
