@@ -3,6 +3,7 @@ package worker
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -18,7 +19,7 @@ func TestProcessor_SuccessOnFirstAttempt(t *testing.T) {
 	repo := repository.NewMockWorkerRepository()
 	registry := executor.NewDefaultRegistry()
 	q := queue.NewQueue(10)
-	proc := NewDatabaseJobProcessor(repo, registry, q)
+	proc := NewDatabaseJobProcessor(repo, registry, q, 5*time.Second)
 
 	jobID := uuid.New()
 	initialJob := &model.Job{
@@ -60,7 +61,7 @@ func TestProcessor_SuccessAfterRetry(t *testing.T) {
 	}
 	registry.Register("custom", mockExec)
 
-	proc := NewDatabaseJobProcessor(repo, registry, q)
+	proc := NewDatabaseJobProcessor(repo, registry, q, 5*time.Second)
 
 	jobID := uuid.New()
 	job := &model.Job{
@@ -107,11 +108,54 @@ func TestProcessor_SuccessAfterRetry(t *testing.T) {
 	}
 }
 
+func TestProcessor_TimeoutAndRetry(t *testing.T) {
+	repo := repository.NewMockWorkerRepository()
+	registry := executor.NewDefaultRegistry()
+	q := queue.NewQueue(10)
+
+	// Custom slow executor that sleeps for 50ms
+	slowExec := &slowExecutor{sleepDuration: 50 * time.Millisecond}
+	registry.Register("slow", slowExec)
+
+	// Set timeout to 10ms so it times out
+	proc := NewDatabaseJobProcessor(repo, registry, q, 10*time.Millisecond)
+
+	jobID := uuid.New()
+	job := &model.Job{
+		ID:          jobID,
+		Type:        "slow",
+		Payload:     json.RawMessage(`{}`),
+		Status:      model.StatusPending,
+		Attempts:    0,
+		MaxAttempts: 3,
+	}
+	repo.SaveJob(job)
+
+	ctx := context.Background()
+	err := proc(ctx, job)
+	if err == nil {
+		t.Fatal("expected timeout error, got nil")
+	}
+
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Errorf("expected context.DeadlineExceeded, got %v", err)
+	}
+
+	// Job should have been marked pending for retry and enqueued
+	jobAfterTimeout, _ := repo.GetJob(ctx, jobID)
+	if jobAfterTimeout.Status != model.StatusPending {
+		t.Errorf("expected status pending for retry, got %s", jobAfterTimeout.Status)
+	}
+	if q.Size() != 1 {
+		t.Errorf("expected job to be re-enqueued, got queue size %d", q.Size())
+	}
+}
+
 func TestProcessor_PermanentFailureAfterMaxAttempts(t *testing.T) {
 	repo := repository.NewMockWorkerRepository()
 	registry := executor.NewDefaultRegistry()
 	q := queue.NewQueue(10)
-	proc := NewDatabaseJobProcessor(repo, registry, q)
+	proc := NewDatabaseJobProcessor(repo, registry, q, 5*time.Second)
 
 	jobID := uuid.New()
 	// Job with max_attempts = 1
@@ -153,4 +197,17 @@ func (m *mockFailingExecutor) Execute(ctx context.Context, job *model.Job) error
 		return executor.ErrSimulatedFailure
 	}
 	return nil
+}
+
+type slowExecutor struct {
+	sleepDuration time.Duration
+}
+
+func (s *slowExecutor) Execute(ctx context.Context, job *model.Job) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-time.After(s.sleepDuration):
+		return nil
+	}
 }

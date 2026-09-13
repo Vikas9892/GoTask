@@ -11,8 +11,12 @@ import (
 	"github.com/Vikas9892/GoTask/services/worker/internal/repository"
 )
 
-// NewDatabaseJobProcessor returns a JobProcessor that executes jobs, tracks attempt history, and synchronizes state with PostgreSQL.
-func NewDatabaseJobProcessor(repo repository.WorkerRepository, execRegistry *executor.Registry, q *queue.Queue) JobProcessor {
+// NewDatabaseJobProcessor returns a JobProcessor that executes jobs with a timeout, tracks attempt history, and synchronizes state with PostgreSQL.
+func NewDatabaseJobProcessor(repo repository.WorkerRepository, execRegistry *executor.Registry, q *queue.Queue, jobTimeout time.Duration) JobProcessor {
+	if jobTimeout <= 0 {
+		jobTimeout = 30 * time.Second
+	}
+
 	return func(ctx context.Context, queuedJob *model.Job) error {
 		// 1. Load fresh job record from PostgreSQL
 		job, err := repo.GetJob(ctx, queuedJob.ID)
@@ -40,8 +44,11 @@ func NewDatabaseJobProcessor(repo repository.WorkerRepository, execRegistry *exe
 		}
 		attemptID, _ := repo.CreateAttempt(ctx, attemptRecord)
 
-		// 4. Execute the job
-		execErr := execRegistry.Execute(ctx, job)
+		// 4. Execute the job with timeout
+		execCtx, cancel := context.WithTimeout(ctx, jobTimeout)
+		execErr := execRegistry.Execute(execCtx, job)
+		cancel()
+
 		if execErr != nil {
 			errStr := execErr.Error()
 			if attemptID > 0 {
