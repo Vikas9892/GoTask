@@ -23,7 +23,8 @@ func NewMockWorkerRepository() *MockWorkerRepository {
 func (m *MockWorkerRepository) SaveJob(job *model.Job) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.jobs[job.ID] = job
+	clone := *job
+	m.jobs[job.ID] = &clone
 }
 
 func (m *MockWorkerRepository) GetJob(ctx context.Context, id uuid.UUID) (*model.Job, error) {

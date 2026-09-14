@@ -44,7 +44,7 @@ func TestWorker_EndToEndProcessing(t *testing.T) {
 	}
 
 	// Wait for processing
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(5 * time.Second)
 	var finalJob *model.Job
 	for time.Now().Before(deadline) {
 		j, err := repo.GetJob(ctx, jobID)

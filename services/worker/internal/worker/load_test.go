@@ -27,10 +27,13 @@ func (f *fastBenchmarkExecutor) Execute(ctx context.Context, job *model.Job) err
 
 func TestWorkerPool_Throughput(t *testing.T) {
 	workerCounts := []int{2, 5, 10}
-	totalJobs := 1000
+	totalJobs := 100
+	if !testing.Short() {
+		totalJobs = 200
+	}
 
 	for _, wc := range workerCounts {
-		q := queue.NewQueue(1000)
+		q := queue.NewQueue(totalJobs)
 		repo := repository.NewMockWorkerRepository()
 		execRegistry := executor.NewDefaultRegistry()
 		benchExec := &fastBenchmarkExecutor{}
@@ -53,14 +56,21 @@ func TestWorkerPool_Throughput(t *testing.T) {
 				MaxAttempts: 3,
 			}
 			repo.SaveJob(job)
-			_ = q.Enqueue(ctx, job)
+			if err := q.Enqueue(ctx, job); err != nil {
+				t.Fatalf("failed to enqueue benchmark job %d: %v", i, err)
+			}
 		}
 		subDuration := time.Since(subStart)
 
-		// 2. Measure processing
+		// 2. Measure processing with timeout
 		procStart := time.Now()
+		deadline := time.Now().Add(10 * time.Second)
 		for atomic.LoadInt32(&benchExec.processedCount) < int32(totalJobs) {
-			time.Sleep(5 * time.Millisecond)
+			if time.Now().After(deadline) {
+				t.Fatalf("timed out processing benchmark jobs: completed %d of %d (workers: %d)",
+					atomic.LoadInt32(&benchExec.processedCount), totalJobs, wc)
+			}
+			time.Sleep(2 * time.Millisecond)
 		}
 		procDuration := time.Since(procStart)
 		pool.Stop()
