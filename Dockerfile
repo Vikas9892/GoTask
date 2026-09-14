@@ -3,10 +3,12 @@
 # ---------------------------------------------------------------------
 # Stage 1: Go Builder (multi-stage binary compilation)
 # ---------------------------------------------------------------------
-FROM golang:1.24-alpine AS go-builder
+FROM golang:alpine AS go-builder
 WORKDIR /app
 
 RUN apk add --no-cache git ca-certificates
+
+ENV GOTOOLCHAIN=auto
 
 COPY go.mod go.sum ./
 RUN go mod download
